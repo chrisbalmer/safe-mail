@@ -1,0 +1,12 @@
+Flask==1.1.1
+pantomime==0.4.0
+gunicorn==20.0.4
+compoundfiles
+compressed_rtf
+msg_parser
+pdfkit
+imgkit
+Pillow
+oletools
+flask-dropzone
+flask-uploads
