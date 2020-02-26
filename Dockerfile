@@ -29,12 +29,12 @@ RUN ln -s /usr/bin/python3 /usr/bin/python
 COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir -q -r /tmp/requirements.txt
 
+RUN mkdir -p /uploads
+RUN chown app /uploads
 RUN mkdir -p /downloads
-
 RUN chown app /downloads
 
-RUN mkdir -p /static
-RUN chown app /static
+
 COPY . /app
 WORKDIR /app
 

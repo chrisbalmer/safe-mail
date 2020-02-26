@@ -1,7 +1,7 @@
 import requests
 import os
 
-path = '/Users/josh.rickard/Downloads/test-convertor/Should open calc.docm'
+path = '/Users/josh.rickard/Downloads/test-convertor/Should_open_calc.docm'
 
 outpath = '/Users/josh.rickard/Downloads/test-convertor/output.zip'
 url = 'http://0.0.0.0:7001/document'
