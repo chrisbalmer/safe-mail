@@ -38,7 +38,7 @@ DOWNLOAD_FOLDER = '/downloads/'
 
 lock = RLock()
 extensions = load_mime_extensions()
-safemail = SafeMail()
+
 
 app = Flask("safe-mail")
 app.config['SECRET_KEY'] = secrets.token_hex(32)
@@ -76,6 +76,7 @@ def get_safe_file_obj(uploaded_file):
     }
 
 def process_uploads(file_name):
+    safemail = SafeMail()
     if file_name:
         if '.msg' in file_name:
             converted_file = safemail.convert_msg(file_name)

@@ -4,6 +4,7 @@ import json
 
 import pdfkit
 import os
+import glob
 from werkzeug.utils import secure_filename
 from pantomime import FileName, normalize_mimetype, mimetype_extension
 from oletools.olevba import VBA_Parser, TYPE_OLE, TYPE_OpenXML, TYPE_Word2003_XML, TYPE_MHTML
@@ -18,6 +19,9 @@ class SafeMail(object):
     _output_file = 'output.zip'
     _output = '/tmp/{}.pdf'
     _msg_dict = {}
+    
+    def __init__(self):
+        self.zip = None
 
     def __detect_vba_macro(self, filename):
         return_list = []
@@ -43,65 +47,72 @@ class SafeMail(object):
             return return_list
         else:
             return None
-    
+
+    def __add_to_zip(self, file_obj):
+        self.zip.write(file_obj, basename(file_obj))
+
+    def __extract_zip(self, path):
+        path = path.split('.zip')[0]
+        with zipfile.ZipFile('{}.zip'.format(path), 'r') as zipObj:
+            # Extract all the contents of zip file in current directory
+            path = path.split('.')[0]
+            zipObj.extractall('/tmp/eml/zip/{}'.format(path))
+            for file in glob.glob("/tmp/eml/zip/{}/*".format(path)):
+                self.zip.write(file, basename(file))
+            
+
     def convert_msg(self, file_obj):
+        if not self.zip:
+            self.zip = zipfile.ZipFile(self._output_path + '/' + self._output_file, 'w')
         return_file = MsgConverter(filename_or_stream=file_obj).get()
-        z = zipfile.ZipFile(self._output_path + '/' + self._output_file, 'w')
         if 'attachments' in return_file:
             if return_file['attachments']:
                 for attachment in return_file['attachments']:
                     dc = DocumentConverter()
                     dc.convert_file(attachment, 100)
                     converted_file = dc.get()
-                    z.write(converted_file, basename(converted_file))
+                    self.__add_to_zip(converted_file)
                     try:
                         self.__detect_vba_macro(converted_file)
                     except:
                         pass
+                    os.remove(converted_file)
 
-        msg_dict = {}
         msg = return_file['msg']
-        image = EmlRender().process(msg)
-        if image:
-            z.write(image, basename(image))
+        msg_dict = {}
         for item in msg.keys():
             msg_dict[item] = msg[item]
         with open('/tmp/message.json', 'w+') as f:
             f.write(json.dumps(msg_dict))
-        z.write('/tmp/message.json', basename('/tmp/message.json'))
-  
-        z.close()
+        self.zip.write('/tmp/message.json', basename('/tmp/message.json'))
+
+        self.convert_eml(return_file['msg'])
+        self.zip.close()
         return self._output_file
 
-    def convert_eml(self, file_obj):
-        return_file = EmlRender().process(file_obj)
-       # return_file = MsgConverter(filename_or_stream=file_obj).get()
-        z = zipfile.ZipFile(self._output_path + '/' + self._output_file, 'w')
-        if 'attachments' in return_file:
+    def convert_eml(self, file_obj, close=True):
+        if not self.zip:
+            self.zip = zipfile.ZipFile(self._output_path + '/' + self._output_file, 'w')
+        f = open(file_obj, "rb")
+        eml = EmlRender()
+        return_file = eml.process(f.read())
+        if return_file:
+            self.zip.write(return_file['result'], basename(return_file['result']))
+            os.remove(return_file['result'])
             if return_file['attachments']:
                 for attachment in return_file['attachments']:
-                    dc = DocumentConverter()
-                    dc.convert_file(attachment, 100)
-                    converted_file = dc.get()
-                    z.write(converted_file, basename(converted_file))
-                    try:
-                        self.__detect_vba_macro(converted_file)
-                    except:
-                        pass
+                    if '.zip' in attachment:
+                        self.__extract_zip(attachment)
+                    self.zip.write(attachment, basename(attachment))
+                    os.remove(attachment)
+            if return_file['images']:
+                for image in return_file['images']:
+                    self.zip.write(image, basename(image))
+                    os.remove(image)
+        if close:
+            self.zip.close()
+            return self._output_file
 
-        msg_dict = {}
-        msg = return_file['msg']
-        image = EmlRender().process(msg)
-        if image:
-            z.write(image, basename(image))
-        for item in msg.keys():
-            msg_dict[item] = msg[item]
-        with open('/tmp/message.json', 'w+') as f:
-            f.write(json.dumps(msg_dict))
-        z.write('/tmp/message.json', basename('/tmp/message.json'))
-  
-        z.close()
-        return self._output_file
 
     def convert_document(self, file_obj):
         z = zipfile.ZipFile(self._output_path + '/' + self._output_file, 'w')

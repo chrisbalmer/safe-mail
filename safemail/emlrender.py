@@ -59,6 +59,11 @@ class EmlRender(object):
 
     _temp_dir = '/tmp/eml'
 
+    def __init__(self):
+        self.image_list = []
+        self.attachments = []
+        self.msg = None
+
     def __append_images(self, images):
         bgColor=(255,255,255)
         widths, heights = zip(*(i.size for i in images))
@@ -91,37 +96,36 @@ class EmlRender(object):
         if not os.path.isdir(self._temp_dir):
             os.makedirs(self._temp_dir)
 
-        msg = data
-       # msg = email.message_from_bytes(data)
+        self.msg = email.message_from_bytes(data)
         try:
-            decode = email.header.decode_header(msg['Date'])[0]
+            decode = email.header.decode_header(self.msg['Date'])[0]
             dateField = str(decode[0])
         except:
             dateField = '&lt;Unknown&gt;'
 
         try:
-            decode = email.header.decode_header(msg['From'])[0]
+            decode = email.header.decode_header(self.msg['From'])[0]
             fromField = str(decode[0])
         except:
             fromField = '&lt;Unknown&gt;'
         fromField = fromField.replace('<', '&lt;').replace('>', '&gt;')
 
         try:
-            decode = email.header.decode_header(msg['To'])[0]
+            decode = email.header.decode_header(self.msg['To'])[0]
             toField = str(decode[0])
         except:
             toField = '&lt;Unknown&gt;'
         toField = toField.replace('<', '&lt;').replace('>', '&gt;')
 
         try:
-            decode = email.header.decode_header(msg['Subject'])[0]
+            decode = email.header.decode_header(self.msg['Subject'])[0]
             subjectField = str(decode[0])
         except:
             subjectField = '&lt;Unknown&gt;'
         subjectField = subjectField.replace('<', '&lt;').replace('>', '&gt;')
 
         try:
-            decode = email.header.decode_header(msg['Message-Id'])[0]
+            decode = email.header.decode_header(self.msg['Message-Id'])[0]
             idField = str(decode[0])
         except:
             idField = '&lt;Unknown&gt;'
@@ -130,7 +134,6 @@ class EmlRender(object):
         imgkitOptions = { 'load-error-handling': 'skip'}
         # imgkitOptions.update({ 'quiet': None })
         imagesList = []
-        attachments = []
 
         # Build a first image with basic mail details
         headers = '''
@@ -154,14 +157,14 @@ class EmlRender(object):
         imagePath = m.hexdigest() + '.png'
         try:
             imgkit.from_string(headers, self._temp_dir + '/' + imagePath, options = imgkitOptions)
-            imagesList.append(self._temp_dir + '/' + imagePath)
+            self.image_list.append(self._temp_dir + '/' + imagePath)
         except:
             pass
 
         #
         # Main loop - process the MIME parts
         #
-        for part in msg.walk():
+        for part in self.msg.walk():
             mimeType = part.get_content_type()
             if part.is_multipart():
                 continue
@@ -182,7 +185,7 @@ class EmlRender(object):
                 imagePath = m.hexdigest() + '.png'
                 try:
                     imgkit.from_string(payload, self._temp_dir + '/' + imagePath, options = imgkitOptions)
-                    imagesList.append(self._temp_dir + '/' + imagePath)
+                    self.image_list.append(self._temp_dir + '/' + imagePath)
                 except:
                     pass
             elif mimeType in imageTypes:
@@ -195,18 +198,33 @@ class EmlRender(object):
                 try:
                     with open(self._temp_dir + '/' + imagePath, 'wb') as f:
                         f.write(imgdata)
-                    imagesList.append(self._temp_dir + '/' + imagePath)
+                    self.image_list.append(self._temp_dir + '/' + imagePath)
                 except:
                     pass
             else:
                 fileName = part.get_filename()
+                payload = part.get_payload(decode=False)
+                payload_data = base64.b64decode(payload)
+           
+                # Generate MD5 hash of the payload
+                m = hashlib.md5()
+                m.update(payload.encode('utf-8'))
+               
+                if 'zip' in mimeType.split('/')[1]:
+                    filePath = m.hexdigest() + '.zip'
+                else:
+                    filePath = m.hexdigest() + '.' + mimeType.split('/')[1]
+
                 if not fileName:
                     fileName = "Unknown"
-                attachments.append("%s (%s)" % (fileName, mimeType))
+                with open(self._temp_dir + '/' + filePath, 'wb') as f:
+                    f.write(payload_data)
+                self.attachments.append(self._temp_dir + '/' + filePath)
+            
 
-        if len(attachments):
+        if len(self.attachments):
             footer = '<p><hr><p><b>Attached Files:</b><p><ul>'
-            for a in attachments:
+            for a in self.attachments:
                 footer = footer + '<li>' + a + '</li>'
             footer = footer + '</ul><p><br>Generated by EMLRender v1.0'
             m = hashlib.md5()
@@ -214,18 +232,19 @@ class EmlRender(object):
             imagePath = m.hexdigest() + '.png'
             try:
                 imgkit.from_string(footer, self._temp_dir + '/' + imagePath, options = imgkitOptions)
-                imagesList.append(self._temp_dir + '/' + imagePath)
+                self.image_list.append(self._temp_dir + '/' + imagePath)
             except:
                 pass
 
         resultImage = self._temp_dir + '/' + 'new.png'
-        if len(imagesList) > 0:
-            images = list(map(Image.open, imagesList))
+        if len(self.image_list) > 0:
+            images = list(map(Image.open, self.image_list))
             combo = self.__append_images(images)
             combo.save(resultImage)
-            # Clean up temporary images
-            for i in imagesList:
-                os.remove(i)
-            return(resultImage)
+            return {
+                'result': resultImage,
+                'images': self.image_list,
+                'attachments': self.attachments
+            }
         else:
-            return(False)
+            return False
