@@ -10,3 +10,4 @@ Pillow
 oletools
 flask-dropzone
 flask-uploads
+pytesseract

@@ -9,6 +9,11 @@ from werkzeug.utils import secure_filename
 from pantomime import FileName, normalize_mimetype, mimetype_extension
 from oletools.olevba import VBA_Parser, TYPE_OLE, TYPE_OpenXML, TYPE_Word2003_XML, TYPE_MHTML
 
+try:
+    from PIL import Image
+except ImportError:
+    import Image
+import pytesseract
 from .documentconverter import DocumentConverter
 from .msgconverter import MsgConverter
 from .emlrender import EmlRender
@@ -60,6 +65,19 @@ class SafeMail(object):
             for file in glob.glob("/tmp/eml/zip/{}/*".format(path)):
                 self.zip.write(file, basename(file))
             
+    def _generate_ocr_text(self, file_obj):
+        ocr = pytesseract.image_to_string(Image.open(file_obj))
+        with open('/tmp/ocr.txt', 'w+') as f:
+            f.write(ocr)
+        self.zip.write('/tmp/ocr.txt', basename('ocr.txt'))
+        
+    def _generate_json(self, file_obj):
+        msg_dict = {}
+        for item in file_obj.keys():
+            msg_dict[item] = file_obj[item]
+        with open('/tmp/message.json', 'w+') as f:
+            f.write(json.dumps(msg_dict))
+        self.zip.write('/tmp/message.json', basename('/tmp/message.json'))
 
     def convert_msg(self, file_obj):
         if not self.zip:
@@ -79,26 +97,23 @@ class SafeMail(object):
                     os.remove(converted_file)
 
         msg = return_file['msg']
-        msg_dict = {}
-        for item in msg.keys():
-            msg_dict[item] = msg[item]
-        with open('/tmp/message.json', 'w+') as f:
-            f.write(json.dumps(msg_dict))
-        self.zip.write('/tmp/message.json', basename('/tmp/message.json'))
+        self._generate_json(msg)
 
-        self.convert_eml(return_file['msg'])
+        with open('/tmp/mail_message.msg', 'w+') as f:
+            f.write(str(msg))
+        self.convert_eml('/tmp/mail_message.msg', close=False)
         self.zip.close()
         return self._output_file
 
     def convert_eml(self, file_obj, close=True):
         if not self.zip:
             self.zip = zipfile.ZipFile(self._output_path + '/' + self._output_file, 'w')
-        f = open(file_obj, "rb")
         eml = EmlRender()
+        f = open(file_obj, "rb")
         return_file = eml.process(f.read())
         if return_file:
             self.zip.write(return_file['result'], basename(return_file['result']))
-            os.remove(return_file['result'])
+           # self._generate_json(return_file['result'])
             if return_file['attachments']:
                 for attachment in return_file['attachments']:
                     if '.zip' in attachment:
@@ -109,6 +124,8 @@ class SafeMail(object):
                 for image in return_file['images']:
                     self.zip.write(image, basename(image))
                     os.remove(image)
+            self._generate_ocr_text(return_file['result'])
+            os.remove(return_file['result'])
         if close:
             self.zip.close()
             return self._output_file

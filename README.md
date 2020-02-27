@@ -6,6 +6,17 @@ safe-mail is a Docker service to help security teams safely interact with msg, e
 
 safe-mail is a Docker service to help security teams safely interact with msg, eml, and documents
 
+safe-mail has the following features and functionality:
+
+* Upload EML and MSG mail messages as well as Microsoft Office documents themselves
+* Generates a PNG of the message itself
+* Provides a OCR text file of the generated mail message
+* Extracts attachments of mail messages and generates a image of the document itself
+* Attempts to extract any identified Macros within attachments and creates a JSON file representing the Macro code base
+* Extracts any .ZIP attachments
+* Generates a JSON file representing the mail message headers
+* Returns all this in a .zip file
+
 ## Installation
 
 First you can download safe-mail by cloning the repository:

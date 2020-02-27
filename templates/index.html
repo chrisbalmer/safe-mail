@@ -10,7 +10,7 @@
 <h1>safe-mail Upload!</h1>
 <form action="{{ url_for('handle_form') }}" enctype="multipart/form-data" method="post">
     {{ dropzone.create() }}
-    <input type="submit" id="submit" value="Submit and Upload">
+    <input type="submit" id="submit" value="Process">
 </form>
 {{ dropzone.load_js() }}
 {{ dropzone.config() }}
