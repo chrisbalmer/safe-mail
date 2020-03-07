@@ -131,7 +131,7 @@ class EmlRender(object):
             idField = '&lt;Unknown&gt;'
         idField = idField.replace('<', '&lt;').replace('>', '&gt;')    
 
-        imgkitOptions = { 'load-error-handling': 'skip'}
+        imgkitOptions = { 'load-error-handling': 'skip' }
         # imgkitOptions.update({ 'quiet': None })
         imagesList = []
 
@@ -151,10 +151,10 @@ class EmlRender(object):
             to=toField, 
             subject=subjectField, 
             id=idField)
-
         m = hashlib.md5()
         m.update(headers.encode('utf-8'))
         imagePath = m.hexdigest() + '.png'
+
         try:
             imgkit.from_string(headers, self._temp_dir + '/' + imagePath, options = imgkitOptions)
             self.image_list.append(self._temp_dir + '/' + imagePath)
@@ -188,6 +188,7 @@ class EmlRender(object):
                     self.image_list.append(self._temp_dir + '/' + imagePath)
                 except:
                     pass
+                
             elif mimeType in imageTypes:
                 payload = part.get_payload(decode=False)
                 imgdata = base64.b64decode(payload)
@@ -235,16 +236,15 @@ class EmlRender(object):
                 self.image_list.append(self._temp_dir + '/' + imagePath)
             except:
                 pass
-
+            
         resultImage = self._temp_dir + '/' + 'new.png'
         if len(self.image_list) > 0:
             images = list(map(Image.open, self.image_list))
             combo = self.__append_images(images)
             combo.save(resultImage)
-            return {
-                'result': resultImage,
-                'images': self.image_list,
-                'attachments': self.attachments
-            }
-        else:
-            return False
+        return {
+            'result': resultImage,
+            'images': self.image_list,
+            'attachments': self.attachments
+        }
+        
