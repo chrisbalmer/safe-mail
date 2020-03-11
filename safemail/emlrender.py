@@ -206,6 +206,7 @@ class EmlRender(object):
                 fileName = part.get_filename()
                 payload = part.get_payload(decode=False)
                 payload_data = base64.b64decode(payload)
+                fileName = str(fileName.encode('utf-8')).replace("b'",'', 1).rstrip("'")
            
                 # Generate MD5 hash of the payload
                 m = hashlib.md5()
@@ -218,9 +219,9 @@ class EmlRender(object):
 
                 if not fileName:
                     fileName = "Unknown"
-                with open(self._temp_dir + '/' + filePath, 'wb') as f:
+                with open(self._temp_dir + '/' + fileName, 'wb') as f:
                     f.write(payload_data)
-                self.attachments.append(self._temp_dir + '/' + filePath)
+                self.attachments.append(self._temp_dir + '/' + fileName)
             
 
         if len(self.attachments):

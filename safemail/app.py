@@ -34,7 +34,7 @@ class ShutdownMiddleware:
 ALLOWED_MS_EXTENSIONS = ['doc', 'dot', 'wbk', 'docx', 'docm', 'dotx', 'dotm', 'docb', 'xls', 'xlt', 'xlm', 'xlsx', 'xlsm', 'xltx', 'xltm', 'xlsb', 'xla', 'xlam', 'xll', 'ppt', 'pptx']
 ALLOWED_MAIL_EXTENSIONS = ['msg', 'eml']
 UPLOAD_FOLDER = '/uploads/'
-DOWNLOAD_FOLDER = '/downloads/'
+DOWNLOAD_FOLDER = '/tmp/'
 
 lock = RLock()
 extensions = load_mime_extensions()

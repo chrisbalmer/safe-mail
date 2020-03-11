@@ -1,13 +1,15 @@
 import zipfile
 from os.path import basename
 import json
+import subprocess
+import tempfile
 
 import pdfkit
 import os
 import glob
 from werkzeug.utils import secure_filename
 from pantomime import FileName, normalize_mimetype, mimetype_extension
-from oletools.olevba import VBA_Parser, TYPE_OLE, TYPE_OpenXML, TYPE_Word2003_XML, TYPE_MHTML
+from pdf2image import convert_from_path
 
 try:
     from PIL import Image
@@ -17,6 +19,9 @@ import pytesseract
 from .documentconverter import DocumentConverter
 from .msgconverter import MsgConverter
 from .emlrender import EmlRender
+from .emltodict import EmlToDict
+from .macros import Macros
+from .outputzip import OutputZip
 
 class SafeMail(object):
 
@@ -26,35 +31,7 @@ class SafeMail(object):
     _msg_dict = {}
     
     def __init__(self):
-        self.zip = None
-
-    def __detect_vba_macro(self, filename):
-        return_list = []
-        vbaparser = VBA_Parser(filename)
-        if vbaparser.detect_vba_macros():
-            for (filename, stream_path, vba_filename, vba_code) in vbaparser.extract_macros():
-                return_list.append({
-                    'filename': filename,
-                    'ole_stream': stream_path,
-                    'vba_filename': vba_filename,
-                    'vba_code': vba_code
-                })
-            results = vbaparser.analyze_macros()
-            for kw_type, keyword, description in results:
-                return_list.append({
-                    'type': kw_type,
-                    'keyword': keyword,
-                    'description': description
-                })
-            return_list.append({
-                'revealed_macro': vbaparser.reveal()
-            })
-            return return_list
-        else:
-            return None
-
-    def __add_to_zip(self, file_obj):
-        self.zip.write(file_obj, basename(file_obj))
+        self.zip = OutputZip()
 
     def __extract_zip(self, path):
         path = path.split('.zip')[0]
@@ -63,85 +40,119 @@ class SafeMail(object):
             path = path.split('.')[0]
             zipObj.extractall('/tmp/eml/zip/{}'.format(path))
             for file in glob.glob("/tmp/eml/zip/{}/*".format(path)):
-                self.zip.write(file, basename(file))
+                self.zip.add_file(file)
             
     def _generate_ocr_text(self, file_obj):
         ocr = pytesseract.image_to_string(Image.open(file_obj))
         with open('/tmp/ocr.txt', 'w+') as f:
             f.write(ocr)
-        self.zip.write('/tmp/ocr.txt', basename('ocr.txt'))
-        
-    def _generate_json(self, file_obj):
-        msg_dict = {}
-        for item in file_obj.keys():
-            msg_dict[item] = file_obj[item]
-        with open('/tmp/message.json', 'w+') as f:
-            f.write(json.dumps(msg_dict))
-        self.zip.write('/tmp/message.json', basename('/tmp/message.json'))
+        self.zip.add_file('/tmp/ocr.txt')
+
+    def __convert_document(self, document):
+        dc = DocumentConverter()
+        dc.convert_file(document, 100)
+        converted_file = dc.get()
+        if converted_file:
+            self.__convert_pdf_to_image(converted_file)
+        self.zip.add_file(converted_file)
+
+    def __detect_macros(self, document):
+        macros = None
+        try:
+            macros = Macros().detect(document)
+        except:
+            pass
+        if macros:
+            self.zip.add_json(json.dumps(macros), '{} - macro'.format(document.split('/')[1]))
+
+    def __add_pdf_analysis_to_zip(self, pdf):
+        pdfid = subprocess.check_output(['python', '/app/safemail/pdfid.py', '{}'.format(pdf)])
+        pdfid_output = '/tmp/pdfid_output.txt'
+        with open(pdfid_output, 'w+') as f:
+            f.write(pdfid.decode('utf-8'))
+        self.zip.add_file(pdfid_output)
+        os.remove(pdfid_output)
+        pdfparser = subprocess.check_output(['python', '/app/safemail/pdfparser.py', '-a','{}'.format(pdf)])
+        pdfparser += subprocess.check_output(['python', '/app/safemail/pdfparser.py', '-w','{}'.format(pdf)])
+        pdfparser_output = '/tmp/pdfparser_output.txt'
+        with open(pdfparser_output, 'w+') as f:
+            f.write(pdfparser.decode('utf-8'))
+        self.zip.add_file(pdfparser_output)
+        os.remove(pdfparser_output)
+
+    def __convert_pdf_to_image(self, pdf):
+        file_name = os.path.basename(pdf).split('.')[0] + '.ppm'
+        with tempfile.TemporaryDirectory() as path:
+            images_from_path = convert_from_path(pdf, output_folder=path, output_file=file_name, size=(500, None))
+            for image in images_from_path:
+                self.zip.add_file(image.filename)
 
     def convert_msg(self, file_obj):
-        if not self.zip:
-            self.zip = zipfile.ZipFile(self._output_path + '/' + self._output_file, 'w')
+        # Convert msg file
         return_file = MsgConverter(filename_or_stream=file_obj).get()
         if 'attachments' in return_file:
             if return_file['attachments']:
                 for attachment in return_file['attachments']:
-                    dc = DocumentConverter()
-                    dc.convert_file(attachment, 100)
-                    converted_file = dc.get()
-                    self.__add_to_zip(converted_file)
-                    try:
-                        self.__detect_vba_macro(converted_file)
-                    except:
-                        pass
-                    os.remove(converted_file)
-
+                    if '.zip' in attachment:
+                        self.__extract_zip(attachment)
+                    elif '.pdf' in attachment:
+                        self.__add_pdf_analysis_to_zip(attachment)
+                        self.__convert_pdf_to_image(attachment)
+                    else:
+                        try:
+                            self.__convert_document(attachment)
+                        except:
+                            pass
+                            # TODO: Add any errors to error file which is added to returned zip
+                    self.zip.add_file(attachment)
+                    self.__detect_macros(attachment)
+                    os.remove(attachment)
         msg = return_file['msg']
-        self._generate_json(msg)
+        msg_dict = {}
+        for item in msg.keys():
+            msg_dict[item] = msg[item]
+        self.zip.add_json(json.dumps(msg_dict), 'msg')
 
-        with open('/tmp/mail_message.msg', 'w+') as f:
+        with open('/tmp/mail_message.eml', 'w+') as f:
             f.write(str(msg))
-        self.convert_eml('/tmp/mail_message.msg', close=False)
+        self.convert_eml('/tmp/mail_message.eml', close=False)
         self.zip.close()
         return self._output_file
 
+
     def convert_eml(self, file_obj, close=True):
-        if not self.zip:
-            self.zip = zipfile.ZipFile(self._output_path + '/' + self._output_file, 'w')
         eml = EmlRender()
         f = open(file_obj, "rb")
         return_file = eml.process(f.read())
         if return_file:
-            self.zip.write(return_file['result'], basename(return_file['result']))
-           # self._generate_json(return_file['result'])
+            self.zip.add_file(return_file['result'])
             if return_file['attachments']:
                 for attachment in return_file['attachments']:
                     if '.zip' in attachment:
                         self.__extract_zip(attachment)
-                    self.zip.write(attachment, basename(attachment))
+                    elif '.pdf' in attachment:
+                        self.__add_pdf_analysis_to_zip(attachment)
+                        self.__convert_pdf_to_image(attachment)
+                    else:
+                        try:
+                            self.__convert_document(attachment)
+                        except:
+                            pass
+                            # TODO: Add any errors to error file which is added to returned zip
+                    self.zip.add_file(attachment)
+                    self.__detect_macros(attachment)
                     os.remove(attachment)
-            if return_file['images']:
-                for image in return_file['images']:
-                    self.zip.write(image, basename(image))
-                    os.remove(image)
             self._generate_ocr_text(return_file['result'])
+            eml_dict = EmlToDict().process(file_obj)
+            if eml_dict:
+                eml_json = '/tmp/eml.json'
+                with open(eml_json, 'w+') as eml:
+                    eml.write(json.dumps(eml_dict))
+                self.zip.add_file(eml_json)
+                os.remove(eml_json)
             os.remove(return_file['result'])
+           
         if close:
             self.zip.close()
-            return self._output_file
-
-
-    def convert_document(self, file_obj):
-        z = zipfile.ZipFile(self._output_path + '/' + self._output_file, 'w')
-        dc = DocumentConverter()
-        dc.convert_file(file_obj, 100)
-        converted_file = dc.get()
-        z.write(converted_file, basename(converted_file))
-        vba = self.__detect_vba_macro(file_obj)
-        if vba:
-            with open('/tmp/macro.json', 'w+') as f:
-                f.write(json.dumps(vba))
-            z.write('/tmp/macro.json', basename('/tmp/macro.json'))
-        z.close()
+        os.remove(file_obj)
         return self._output_file
-    

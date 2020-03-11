@@ -11,3 +11,5 @@ oletools
 flask-dropzone
 flask-uploads
 pytesseract
+eml_parser
+pdf2image

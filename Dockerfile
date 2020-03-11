@@ -12,6 +12,12 @@ RUN apt-get -qq -y update \
     && apt-get -qq -y autoremove \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+
+RUN apt-get -y update
+RUN apt-get -y install tesseract-ocr libtesseract-dev
+RUN apt-get -y install poppler-utils
+
 # RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
 # RUN apt-get -q -y install ttf-mscorefonts-installer
 
