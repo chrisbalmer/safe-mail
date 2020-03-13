@@ -56,6 +56,8 @@ class MsgConverter(object):
             return None
 
     def load(self, filename_or_stream):
+        if self._ATTACHMENTS:
+            self._ATTACHMENTS = []
         with compoundfiles.CompoundFileReader(filename_or_stream) as doc:
             doc.rtf_attachments = 0
             return self.load_message_stream(doc.root, True, doc)
@@ -119,9 +121,11 @@ class MsgConverter(object):
 
     def load_message_stream(self, entry, is_top_level, doc):
         # Load stream data.
+        props = None
         props = self.__parse_properties(entry['__properties_version1.0'], is_top_level, entry, doc)
 
         # Construct the MIME message....
+        self._MIME_MSG = None
         self._MIME_MSG = email.message.EmailMessage()
 
         # Add the raw headers, if known.
@@ -221,10 +225,11 @@ class MsgConverter(object):
 
         if not os.path.exists(self.DOWNLOAD_FOLDER):
             os.makedirs(self.DOWNLOAD_FOLDER)
-        with open('{}/{}'.format(self.DOWNLOAD_FOLDER, filename), 'wb+') as f:
-            f.write(blob)
+        if filename not in self._ATTACHMENTS:
+            with open('{}/{}'.format(self.DOWNLOAD_FOLDER, filename), 'wb+') as f:
+                f.write(blob)
 
-        self._ATTACHMENTS.append('{}/{}'.format(self.DOWNLOAD_FOLDER, filename))
+            self._ATTACHMENTS.append('{}/{}'.format(self.DOWNLOAD_FOLDER, filename))
 
     def __parse_properties(self, properties, is_top_level, container, doc):
             """

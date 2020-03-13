@@ -34,7 +34,7 @@ class ShutdownMiddleware:
 ALLOWED_MS_EXTENSIONS = ['doc', 'dot', 'wbk', 'docx', 'docm', 'dotx', 'dotm', 'docb', 'xls', 'xlt', 'xlm', 'xlsx', 'xlsm', 'xltx', 'xltm', 'xlsb', 'xla', 'xlam', 'xll', 'ppt', 'pptx']
 ALLOWED_MAIL_EXTENSIONS = ['msg', 'eml']
 UPLOAD_FOLDER = '/uploads/'
-DOWNLOAD_FOLDER = '/tmp/'
+
 
 lock = RLock()
 extensions = load_mime_extensions()
@@ -45,7 +45,6 @@ app.config['SECRET_KEY'] = secrets.token_hex(32)
 
 app.config.update(
     UPLOAD_FOLDER=UPLOAD_FOLDER,
-    DOWNLOAD_FOLDER=DOWNLOAD_FOLDER,
     DROPZONE_ALLOWED_FILE_CUSTOM=True,
     DROPZONE_ALLOWED_FILE_TYPE=', '.join('.{}'.format(x) for x in ALLOWED_MS_EXTENSIONS + ALLOWED_MAIL_EXTENSIONS),
     DROPZONE_IN_FORM=True,
@@ -76,7 +75,7 @@ def get_safe_file_obj(uploaded_file):
     }
 
 def process_uploads(file_name):
-    safemail = SafeMail()
+    safemail = SafeMail(file_name)
     if file_name:
         if '.msg' in file_name:
             converted_file = safemail.convert_msg(file_name)
@@ -86,7 +85,7 @@ def process_uploads(file_name):
             for item in ALLOWED_MS_EXTENSIONS:
                 if item in file_name:
                     converted_file = safemail.convert_document(file_name)
-        session['zip'] = converted_file
+        session['file_urls'].append(converted_file)
 
 
 @app.route('/')
@@ -95,16 +94,32 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def handle_upload():
-    for key, f in request.files.items():
-        if key.startswith('file'):
-            f.save(os.path.join(app.config['UPLOAD_FOLDER'], f.filename))
-            process_uploads(os.path.join(app.config['UPLOAD_FOLDER'], f.filename))
+    if 'file_urls' not in session:
+        session['file_urls'] = []
+    else:
+        if session['file_urls']:
+            session['file_urls'] = []
+    file_obj = request.files
+    for f in file_obj:
+        file = request.files.get(f)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
+        process_uploads(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
     return '', 204
 
 @app.route('/form', methods=['POST'])
 def handle_form():
-    return send_from_directory(app.config['DOWNLOAD_FOLDER'], session['zip'], as_attachment=True)
+    if 'file_urls' not in session or session['file_urls'] == []:
+        return redirect(url_for('handle_upload'))
 
+    file_urls = session['file_urls']
+    session.pop('file_urls', None)
+    return render_template('results.html', file_urls=file_urls)
+
+@app.route('/tmp/<filename>')
+def download(filename):
+    if '/tmp/' in filename:
+        filename = filename.replace('/tmp/','')
+    return send_from_directory('/tmp', filename)
 
 @app.route('/email', methods=['POST'])
 @app.route('/document', methods=['POST'])
@@ -113,5 +128,5 @@ def upload():
         if key.startswith('file'):
             f.save(os.path.join(app.config['UPLOAD_FOLDER'], f.filename))
             process_uploads(os.path.join(app.config['UPLOAD_FOLDER'], f.filename))
-    
-    return send_file(app.config['DOWNLOAD_FOLDER'] + session['zip'])
+
+    return send_file(session['zip'])

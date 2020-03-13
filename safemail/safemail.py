@@ -26,12 +26,11 @@ from .outputzip import OutputZip
 class SafeMail(object):
 
     _output_path = '/downloads'
-    _output_file = 'output.zip'
     _output = '/tmp/{}.pdf'
     _msg_dict = {}
     
-    def __init__(self):
-        self.zip = OutputZip()
+    def __init__(self, input_name):
+        self.zip = OutputZip(input_name)
 
     def __extract_zip(self, path):
         path = path.split('.zip')[0]
@@ -54,7 +53,7 @@ class SafeMail(object):
         converted_file = dc.get()
         if converted_file:
             self.__convert_pdf_to_image(converted_file)
-        self.zip.add_file(converted_file)
+            self.zip.add_file(converted_file)
 
     def __detect_macros(self, document):
         macros = None
@@ -89,6 +88,7 @@ class SafeMail(object):
 
     def convert_msg(self, file_obj):
         # Convert msg file
+        return_file = None
         return_file = MsgConverter(filename_or_stream=file_obj).get()
         if 'attachments' in return_file:
             if return_file['attachments']:
@@ -117,12 +117,13 @@ class SafeMail(object):
             f.write(str(msg))
         self.convert_eml('/tmp/mail_message.eml', close=False)
         self.zip.close()
-        return self._output_file
+        return self.zip.filename
 
 
     def convert_eml(self, file_obj, close=True):
         eml = EmlRender()
         f = open(file_obj, "rb")
+        return_file = None
         return_file = eml.process(f.read())
         if return_file:
             self.zip.add_file(return_file['result'])
@@ -155,4 +156,4 @@ class SafeMail(object):
         if close:
             self.zip.close()
         os.remove(file_obj)
-        return self._output_file
+        return self.zip.filename
