@@ -1,0 +1,9 @@
+version: '3.7'
+services:
+  safe-mail:
+    build:
+        context: .
+        dockerfile: Dockerfile
+    restart: on-failure
+    ports:
+      - "7001:7001"

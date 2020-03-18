@@ -2,7 +2,7 @@ import zipfile
 from os.path import basename
 import json
 import subprocess
-import tempfile
+import tempfile, base64
 
 import pdfkit
 import os
@@ -113,18 +113,22 @@ class SafeMail(object):
             msg_dict[item] = msg[item]
         self.zip.add_json(json.dumps(msg_dict), 'msg')
 
-        with open('/tmp/mail_message.eml', 'w+') as f:
+        image_name = file_obj.split('/',2)[1].replace('.msg','')
+        with open('/tmp/{}.eml'.format(image_name), 'w+') as f:
             f.write(str(msg))
-        self.convert_eml('/tmp/mail_message.eml', close=False)
+        msg_image = None
+        zip_file, msg_image = self.convert_eml('/tmp/{}.eml'.format(image_name), image_name=image_name, close=False)
         self.zip.close()
-        return self.zip.filename
+        return self.zip.filename, msg_image
 
 
-    def convert_eml(self, file_obj, close=True):
+    def convert_eml(self, file_obj, image_name=None, close=True):
+        if not image_name:
+            image_name = file_obj.split('/',2)[1].replace('.eml','')
         eml = EmlRender()
         f = open(file_obj, "rb")
         return_file = None
-        return_file = eml.process(f.read())
+        return_file = eml.process(f.read(), image_name)
         if return_file:
             self.zip.add_file(return_file['result'])
             if return_file['attachments']:
@@ -151,9 +155,8 @@ class SafeMail(object):
                     eml.write(json.dumps(eml_dict))
                 self.zip.add_file(eml_json)
                 os.remove(eml_json)
-            os.remove(return_file['result'])
-           
+            #os.remove(return_file['result'])
         if close:
             self.zip.close()
         os.remove(file_obj)
-        return self.zip.filename
+        return self.zip.filename,return_file['result']

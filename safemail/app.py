@@ -52,6 +52,7 @@ app.config.update(
     DROPZONE_UPLOAD_ACTION='handle_upload',  # URL or endpoint
     DROPZONE_UPLOAD_BTN_ID='submit'
 )
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 # dropzone extension
 dropzone = Dropzone(app)
 
@@ -78,14 +79,16 @@ def process_uploads(file_name):
     safemail = SafeMail(file_name)
     if file_name:
         if '.msg' in file_name:
-            converted_file = safemail.convert_msg(file_name)
+            converted_file, image = safemail.convert_msg(file_name)
         elif '.eml' in file_name:
-            converted_file = safemail.convert_eml(file_name)
+            converted_file, image = safemail.convert_eml(file_name)
         else:
             for item in ALLOWED_MS_EXTENSIONS:
                 if item in file_name:
                     converted_file = safemail.convert_document(file_name)
-        session['file_urls'].append(converted_file)
+        session['file_urls'].append({
+            'url': converted_file,
+            'image': image})
 
 
 @app.route('/')
@@ -124,9 +127,22 @@ def download(filename):
 @app.route('/email', methods=['POST'])
 @app.route('/document', methods=['POST'])
 def upload():
+    if 'file_urls' not in session:
+        session['file_urls'] = []
+    else:
+        if session['file_urls']:
+            session['file_urls'] = []
     for key, f in request.files.items():
         if key.startswith('file'):
             f.save(os.path.join(app.config['UPLOAD_FOLDER'], f.filename))
             process_uploads(os.path.join(app.config['UPLOAD_FOLDER'], f.filename))
 
-    return send_file(session['zip'])
+    print(session['file_urls'])
+    return send_file(session['file_urls'][0]['url'])
+
+@app.after_request
+def add_header(response):
+    # response.cache_control.no_store = True
+    if 'Cache-Control' not in response.headers:
+        response.headers['Cache-Control'] = 'no-store'
+    return response

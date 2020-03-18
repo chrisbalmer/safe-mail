@@ -911,17 +911,6 @@ if __name__ == "__main__":
             for name in files:
                 if '.msg' in name or '.eml' in name:
                     file_name = os.path.join(root, name)
-                    #print(file_name + "...")
                     msg = MsgConverter(file_name).get()
-                    #print(msg)
                     with open(file_name + ".eml", "wb") as f:
                         f.write(msg.as_bytes())
-                #r.append(os.path.join(root, name))
-
-        #for file in os.listdir(sys.argv[1:]):
-
-        #for fn in sys.argv[1:]:
-        #    print(fn + "...")
-       #     msg = MsgConverter(fn).get()
-         #   with open(fn + ".eml", "wb") as f:
-       #         f.write(msg.as_bytes())
