@@ -57,7 +57,7 @@ imageTypes = [ 'image/gif', 'image/jpeg', 'image/png' ]
 
 class EmlRender(object):
 
-    _temp_dir = '/tmp/eml'
+    _temp_dir = '/tmp'
 
     def __init__(self):
         self.image_list = []
@@ -86,7 +86,7 @@ class EmlRender(object):
         else:
             return None
 
-    def process(self, data):
+    def process(self, data, image_name):
         '''
         Process the email (bytes), extract MIME parts and useful headers.
         Generate a PNG picture of the mail
@@ -96,6 +96,7 @@ class EmlRender(object):
         if not os.path.isdir(self._temp_dir):
             os.makedirs(self._temp_dir)
 
+        self.msg = None
         self.msg = email.message_from_bytes(data)
         try:
             decode = email.header.decode_header(self.msg['Date'])[0]
@@ -132,7 +133,7 @@ class EmlRender(object):
         idField = idField.replace('<', '&lt;').replace('>', '&gt;')    
 
         imgkitOptions = { 'load-error-handling': 'skip' }
-        # imgkitOptions.update({ 'quiet': None })
+        imgkitOptions.update({ 'quiet': None })
         imagesList = []
 
         # Build a first image with basic mail details
@@ -238,7 +239,11 @@ class EmlRender(object):
             except:
                 pass
             
-        resultImage = self._temp_dir + '/' + 'new.png'
+        image_name = image_name.replace(' ','_').replace('/', '_').replace('-','_').replace('(','_').replace(')','_')
+        if os.path.exists(self._temp_dir + '/' + image_name + '.png'):
+            os.remove(self._temp_dir + '/' + image_name + '.png')
+        resultImage = None
+        resultImage = self._temp_dir + '/' + image_name + '.png'
         if len(self.image_list) > 0:
             images = list(map(Image.open, self.image_list))
             combo = self.__append_images(images)

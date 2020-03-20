@@ -30,6 +30,7 @@ class SafeMail(object):
     _msg_dict = {}
     
     def __init__(self, input_name):
+        self.__document_upload = []
         self.zip = OutputZip(input_name)
 
     def __extract_zip(self, path):
@@ -47,7 +48,7 @@ class SafeMail(object):
             f.write(ocr)
         self.zip.add_file('/tmp/ocr.txt')
 
-    def __convert_document(self, document):
+    def __convert_document_private(self, document):
         dc = DocumentConverter()
         dc.convert_file(document, 100)
         converted_file = dc.get()
@@ -80,11 +81,18 @@ class SafeMail(object):
         os.remove(pdfparser_output)
 
     def __convert_pdf_to_image(self, pdf):
+        images_from_path = None
         file_name = os.path.basename(pdf).split('.')[0] + '.ppm'
         with tempfile.TemporaryDirectory() as path:
-            images_from_path = convert_from_path(pdf, output_folder=path, output_file=file_name, size=(500, None))
-            for image in images_from_path:
-                self.zip.add_file(image.filename)
+            try:
+                images_from_path = convert_from_path(pdf, output_folder=path, output_file=file_name, size=(500, None))
+            except:
+                # TODO: Add error logs are part of output
+                pass
+            if images_from_path:
+                for image in images_from_path:
+                    self.zip.add_file(image.filename)
+                    self.__document_upload.append(image.filename)
 
     def convert_msg(self, file_obj):
         # Convert msg file
@@ -100,7 +108,7 @@ class SafeMail(object):
                         self.__convert_pdf_to_image(attachment)
                     else:
                         try:
-                            self.__convert_document(attachment)
+                            self.__convert_document_private(attachment)
                         except:
                             pass
                             # TODO: Add any errors to error file which is added to returned zip
@@ -140,7 +148,7 @@ class SafeMail(object):
                         self.__convert_pdf_to_image(attachment)
                     else:
                         try:
-                            self.__convert_document(attachment)
+                            self.__convert_document_private(attachment)
                         except:
                             pass
                             # TODO: Add any errors to error file which is added to returned zip
@@ -160,3 +168,25 @@ class SafeMail(object):
             self.zip.close()
         os.remove(file_obj)
         return self.zip.filename,return_file['result']
+
+
+    def convert_document(self, document):
+        if '.zip' in document:
+            self.__extract_zip(document)
+        elif '.pdf' in document:
+            self.__add_pdf_analysis_to_zip(document)
+            self.__convert_pdf_to_image(document)
+        else:
+            try:
+                self.__convert_document_private(document)
+            except:
+                pass
+                # TODO: Add any errors to error file which is added to returned zip
+        self.zip.add_file(document)
+        self.__detect_macros(document)
+        self.zip.close()
+        if os.path.exists(document):
+            os.remove(document)
+        if self.__document_upload:
+            return self.zip.filename, self.__document_upload[0]
+        return self.zip.filename, None
