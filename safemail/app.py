@@ -130,17 +130,19 @@ def download(filename):
 @app.route('/email', methods=['POST'])
 @app.route('/document', methods=['POST'])
 def upload():
-    if 'file_urls' not in session:
-        session['file_urls'] = []
-    else:
-        if session['file_urls']:
+    if request.method == 'POST':
+        if 'file_urls' not in session:
             session['file_urls'] = []
-    for key, f in request.files.items():
-        if key.startswith('file'):
-            f.save(os.path.join(app.config['UPLOAD_FOLDER'], f.filename))
-            process_uploads(os.path.join(app.config['UPLOAD_FOLDER'], f.filename))
+        else:
+            if session['file_urls']:
+                session['file_urls'] = []
+   
+        for key, f in request.files.items():
+            if key.startswith('file'):
+                f.save(os.path.join(app.config['UPLOAD_FOLDER'], f.filename))
+                process_uploads(os.path.join(app.config['UPLOAD_FOLDER'], f.filename))
 
-    return send_file(session['file_urls'][0]['url'])
+        return send_file(session['file_urls'][0]['url'])
 
 @app.after_request
 def add_header(response):
