@@ -4,19 +4,28 @@
     <meta charset="UTF-8">
     <title>safe-mail</title>
     {{ dropzone.load_css() }}
-    {{ dropzone.style('border: 2px dashed #0087F7; margin: 10px 0 10px; min-height: 400px; width: 800px; background-color: #00FFF4') }}
+    {{ dropzone.style('border: 2px dashed #0087F7; margin: 10px 0 10px; min-height: 400px; width: 800px; background-color: #7AE3EF') }}
     <style>
         body { background-color: #131724;}
         h1 { color: #02AAFF;}
         form { color: #455066;}
+        input {
+            background-color: #f44336;
+            color: white;
+            padding: 14px 25px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+        }
+       
     </style>
 </head>
 <body>
     <center>
-<img src="./static/large-safe-mail-logo.png" width="600">
+<img src="./static/safe-mail-logo.png" width="600">
 <form action="{{ url_for('handle_form') }}" enctype="multipart/form-data" method="post">
     {{ dropzone.create() }}
-    <input type="submit" id="submit" value="Process">
+    <div class="back-button"><input type="submit" id="submit" value="Process"><p></p></div>
 </form>
 {{ dropzone.load_js() }}
 {{ dropzone.config() }}
