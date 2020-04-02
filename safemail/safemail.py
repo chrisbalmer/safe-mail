@@ -132,7 +132,10 @@ class SafeMail(object):
 
     def convert_eml(self, file_obj, image_name=None, close=True):
         if not image_name:
-            image_name = file_obj.split('/',2)[1].replace('.eml','')
+            for item in file_obj.split('/',2):
+                if item:
+                    if '.eml' in item:
+                        image_name = item.replace('.eml','')
         eml = EmlRender()
         f = open(file_obj, "rb")
         return_file = None

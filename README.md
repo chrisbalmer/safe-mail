@@ -37,7 +37,7 @@ safe-mail has the following features and functionality:
 First you can download safe-mail by cloning the repository:
 
 ```bash
-git clone git@github.com:swimlane/safe-mail.git
+git clone https://github.com/swimlane/safe-mail.git
 ```
 
 ## Building Docker Image
@@ -191,6 +191,12 @@ Additionally, if you are using the `document` endpoint (or the UI front-end) saf
 ## Running the tests
 
 Tests within this project should cover all available properties and methods.  As this project grows the tests will become more robust but for now we are testing that they exist and return outputs.
+
+You can run integration tests of the Docker container by running the following:
+
+```bash
+python3 -m pytest
+```
 
 ## Contributing
 
